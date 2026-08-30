@@ -63,7 +63,14 @@ async def main() -> None:
     scheduler.start()
 
     me = await bot.get_me()
-    log.info("Запущен как @%s. AI: %s", me.username, "on" if settings.ai_enabled else "off")
+    print(
+        f"\n  ✅ Бот запущен: @{me.username}   "
+        f"(ИИ: {'вкл' if settings.ai_enabled else 'выкл'}, "
+        f"группа: {'задана' if settings.supergroup_id else 'нет'})\n"
+        f"  Напиши боту /start в Telegram. Остановить: Ctrl+C\n",
+        flush=True,
+    )
+    log.info("polling started")
 
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
