@@ -36,6 +36,9 @@ async def lessons_for_day(
     session: AsyncSession, on: date, semester_start: date
 ) -> DaySchedule:
     parity = week_parity(on, semester_start)
+    if on < semester_start:
+        # до начала семестра пар нет, даже если чётность формально совпала
+        return DaySchedule(on, WEEKDAY_NAMES[on.weekday()], parity, [])
     stmt = (
         select(Lesson)
         .options(selectinload(Lesson.subject))
@@ -56,25 +59,67 @@ async def lessons_for_week(
     return out
 
 
-def format_day(day: DaySchedule) -> str:
+_KIND_ICON = {
+    "лекция": "📗",
+    "практическое занятие": "✏️",
+    "практика": "✏️",
+    "лабораторная работа": "🧪",
+    "лабораторное занятие": "🧪",
+    "семинар": "💬",
+}
+_MONTHS_SHORT = ["", "янв", "фев", "мар", "апр", "мая", "июн",
+                 "июл", "авг", "сен", "окт", "ноя", "дек"]
+
+
+def _kind_icon(kind: str | None) -> str:
+    if not kind:
+        return "📘"
+    return _KIND_ICON.get(kind.strip().lower(), "📘")
+
+
+def format_day(day: DaySchedule, *, with_header: bool = True) -> str:
     from bot import texts
 
-    parity_label = texts.WEEK_ODD if day.parity == WeekParity.odd else texts.WEEK_EVEN
-    header = f"<b>{day.weekday_name}</b>, {day.day.strftime('%d.%m')} ({parity_label})"
+    parity = texts.WEEK_ODD if day.parity == WeekParity.odd else texts.WEEK_EVEN
+    header = (
+        f"<b>{day.weekday_name}</b>, {day.day.day} {_MONTHS_SHORT[day.day.month]} · {parity}"
+    )
     if not day.lessons:
-        return f"{header}\nПар нет."
-    rows = [header]
+        body = "  🎉 пар нет"
+        return f"{header}\n{body}" if with_header else body
+
+    chunks: list[str] = []
     for les in day.lessons:
-        t = les.starts_at.strftime("%H:%M")
+        t = les.starts_at.strftime("%H:%M") if les.starts_at else "—"
         if les.ends_at:
             t += "–" + les.ends_at.strftime("%H:%M")
-        bits = [f"{les.pair_no}. {t}  <b>{les.subject.name}</b>"]
-        extra = " · ".join(
-            x for x in [les.kind, les.room and f"ауд. {les.room}", les.teacher] if x
+        lines = [
+            f"🕐 <b>{t}</b>   <i>{les.pair_no} пара</i>",
+            f"{_kind_icon(les.kind)} <b>{les.subject.name}</b>"
+            + (f"  ·  {les.kind.lower()}" if les.kind else ""),
+        ]
+        meta = "   ".join(
+            x for x in [
+                les.room and f"📍 {les.room}",
+                les.teacher and f"👤 {les.teacher}",
+            ] if x
         )
-        if extra:
-            bits.append(f"   {extra}")
+        if meta:
+            lines.append(meta)
         if les.note:
-            bits.append(f"   <i>{les.note}</i>")
-        rows.append("\n".join(bits))
-    return "\n".join(rows)
+            lines.append(f"❗ <i>{les.note}</i>")
+        chunks.append("\n".join(lines))
+
+    body = "\n\n".join(chunks)
+    return f"{header}\n\n{body}" if with_header else body
+
+
+_DIVIDER = "\n\n━━━━━━━━━━━━━━━\n\n"
+
+
+def format_week(days: list[DaySchedule], *, title: str | None = None) -> str:
+    parts = [format_day(d) for d in days]
+    text = _DIVIDER.join(parts)
+    if title:
+        text = f"<b>{title}</b>{_DIVIDER}{text}"
+    return text

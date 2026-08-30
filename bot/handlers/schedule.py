@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 from datetime import date, time, timedelta
 
@@ -29,44 +30,82 @@ router = Router(name="schedule")
 router.message.filter(IsRegistered())
 
 
-def _nav_kb() -> InlineKeyboardBuilder:
+def _day_kb() -> InlineKeyboardBuilder:
     kb = InlineKeyboardBuilder()
     kb.button(text="Сегодня", callback_data="sch:today")
     kb.button(text="Завтра", callback_data="sch:tomorrow")
-    kb.button(text="Неделя", callback_data="sch:week")
+    kb.button(text="📆 Эта неделя", callback_data="sch:w:0")
+    kb.button(text="След. неделя ▶️", callback_data="sch:w:1")
+    kb.adjust(2, 2)
+    return kb
+
+
+def _week_kb(offset: int) -> InlineKeyboardBuilder:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="◀️ Пред.", callback_data=f"sch:w:{offset - 1}")
+    kb.button(text="Сегодня", callback_data="sch:today")
+    kb.button(text="След. ▶️", callback_data=f"sch:w:{offset + 1}")
     kb.adjust(3)
     return kb
+
+
+async def _nearest_week_offset(session: AsyncSession, monday: date, sem: date) -> int:
+    """Если на текущей неделе пар нет — ищем ближайшую вперёд (до 3 недель)."""
+    for off in range(4):
+        days = await lessons_for_week(session, monday + timedelta(weeks=off), sem)
+        if any(d.lessons for d in days):
+            return off
+    return 0
 
 
 @router.message(F.text.casefold() == texts.BTN_SCHEDULE.casefold())
 @router.message(Command("schedule"))
 async def schedule_root(message: Message, session: AsyncSession):
-    await _send_day(message, session, date.today())
-
-
-async def _send_day(message: Message, session: AsyncSession, on: date):
     settings = get_settings()
-    day = await lessons_for_day(session, on, settings.semester_start)
-    await message.answer(format_day(day), reply_markup=_nav_kb().as_markup())
-
-
-@router.callback_query(F.data.startswith("sch:"))
-async def schedule_nav(cb: CallbackQuery, session: AsyncSession):
-    settings = get_settings()
-    action = cb.data.split(":", 1)[1]
     today = date.today()
-    if action == "today":
-        text = format_day(await lessons_for_day(session, today, settings.semester_start))
-    elif action == "tomorrow":
-        text = format_day(
-            await lessons_for_day(session, today + timedelta(days=1), settings.semester_start)
+    day = await lessons_for_day(session, today, settings.semester_start)
+    if day.lessons:
+        await message.answer(format_day(day), reply_markup=_day_kb().as_markup())
+        return
+    # сегодня пусто — показываем ближайшую неделю с парами
+    monday = today - timedelta(days=today.weekday())
+    off = await _nearest_week_offset(session, monday, settings.semester_start)
+    await _send_week(message, session, off)
+
+
+async def _send_week(target, session: AsyncSession, offset: int) -> None:  # noqa: ANN001
+    settings = get_settings()
+    today = date.today()
+    monday = today - timedelta(days=today.weekday()) + timedelta(weeks=offset)
+    days = await lessons_for_week(session, monday, settings.semester_start)
+    when = "эта неделя" if offset == 0 else (
+        "следующая неделя" if offset == 1 else f"неделя с {monday.strftime('%d.%m')}"
+    )
+    await target.answer(f"<b>📅 Расписание — {when}</b>")
+    for i, day in enumerate(days):
+        await target.answer(
+            format_day(day),
+            reply_markup=_week_kb(offset).as_markup() if i == len(days) - 1 else None,
         )
-    else:
-        monday = today - timedelta(days=today.weekday())
-        days = await lessons_for_week(session, monday, settings.semester_start)
-        text = "\n\n".join(format_day(d) for d in days)
-    await cb.message.edit_text(text, reply_markup=_nav_kb().as_markup())
+
+
+@router.callback_query(F.data.startswith("sch:w:"))
+async def schedule_week(cb: CallbackQuery, session: AsyncSession):
     await cb.answer()
+    offset = int(cb.data.split(":")[2])
+    with contextlib.suppress(Exception):
+        await cb.message.edit_reply_markup(reply_markup=None)
+    await _send_week(cb.message, session, offset)
+
+
+@router.callback_query(F.data.in_({"sch:today", "sch:tomorrow"}))
+async def schedule_day(cb: CallbackQuery, session: AsyncSession):
+    settings = get_settings()
+    await cb.answer()
+    on = date.today() + (timedelta(days=1) if cb.data == "sch:tomorrow" else timedelta())
+    day = await lessons_for_day(session, on, settings.semester_start)
+    with contextlib.suppress(Exception):
+        await cb.message.edit_text(format_day(day), reply_markup=_day_kb().as_markup())
 
 
 # ─────────────────────────── редактирование ──────────────────────────────
@@ -183,15 +222,22 @@ async def sched_import_apply(message: Message, state: FSMContext, session: Async
     )
 
 
-async def _publish_week(bot, session: AsyncSession) -> str:
+async def _publish_week(bot, session: AsyncSession) -> str:  # noqa: ANN001
     settings = get_settings()
     if settings.supergroup_id is None:
         return "Группа не подключена (нет SUPERGROUP_ID в .env)."
     today = date.today()
     monday = today - timedelta(days=today.weekday())
     days = await lessons_for_week(session, monday, settings.semester_start)
-    text = "<b>📅 Расписание на неделю</b>\n\n" + "\n\n".join(format_day(d) for d in days)
-    await bot.send_message(settings.supergroup_id, text)
+    parity = days[0].parity if days else None
+    from bot import texts as _t
+
+    label = _t.WEEK_ODD if parity == WeekParity.odd else _t.WEEK_EVEN
+    await bot.send_message(
+        settings.supergroup_id, f"<b>📅 Расписание на неделю</b> · {label}"
+    )
+    for day in days:
+        await bot.send_message(settings.supergroup_id, format_day(day))
     return "Опубликовала расписание в чат группы."
 
 
