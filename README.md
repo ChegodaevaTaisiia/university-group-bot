@@ -62,14 +62,21 @@ python -m bot.main
 ## Деплой на VPS через Docker (рекомендуется)
 
 ```bash
-# на сервере:
+# на сервере (Ubuntu 22.04/24.04), от root:
 git clone <репозиторий> group-bot && cd group-bot
-cp .env.example .env && nano .env          # заполнить значения
+bash deploy/setup.sh                        # ставит Docker + фаервол
+cp .env.example .env && nano .env           # BOT_TOKEN, ADMIN_IDS, SUPERGROUP_ID, RASP_URL, ключ ИИ
 docker compose up -d --build
-docker compose logs -f bot                 # проверить, что запустился
+docker compose logs -f bot                  # проверить, что запустился
 ```
 
-Данные (БД, файлы) лежат в volume `bot_data` и переживают перезапуск/пересборку.
+Данные (БД, файлы) лежат в `./data` рядом с кодом и переживают перезапуск/пересборку.
+
+Бэкап базы (в cron, раз в сутки):
+
+```bash
+(crontab -l 2>/dev/null; echo "0 4 * * * /root/group-bot/deploy/backup.sh") | crontab -
+```
 
 Обновление после изменений в коде:
 

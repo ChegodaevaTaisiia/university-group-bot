@@ -6,8 +6,5 @@ services:
     environment:
       DATA_DIR: /data
     volumes:
-      - bot_data:/data
-    # логи смотреть: docker compose logs -f bot
-
-volumes:
-  bot_data:
+      - ./data:/data          # база и файлы лежат рядом в ./data — легко бэкапить
+    # логи: docker compose logs -f bot
