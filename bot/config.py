@@ -33,6 +33,8 @@ class Settings(BaseSettings):
 
     # ИИ
     anthropic_api_key: str | None = None
+    # Свой endpoint (если ключ от прокси, а не прямой от Anthropic). Пусто = api.anthropic.com
+    anthropic_base_url: str | None = None
     ai_model: str = "claude-haiku-4-5"
     ai_monthly_budget_usd: float = 5.0
     ai_user_hourly_limit: int = 15
@@ -46,7 +48,7 @@ class Settings(BaseSettings):
             return [v]
         return v
 
-    @field_validator("supergroup_id", "anthropic_api_key", mode="before")
+    @field_validator("supergroup_id", "anthropic_api_key", "anthropic_base_url", mode="before")
     @classmethod
     def _blank_to_none(cls, v: object) -> object:
         if isinstance(v, str) and not v.strip():

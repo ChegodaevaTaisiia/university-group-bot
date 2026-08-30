@@ -51,7 +51,10 @@ class AiClient:
         if settings.ai_enabled:
             from anthropic import AsyncAnthropic
 
-            self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            kwargs: dict = {"api_key": settings.anthropic_api_key}
+            if settings.anthropic_base_url:
+                kwargs["base_url"] = settings.anthropic_base_url.rstrip("/")
+            self._client = AsyncAnthropic(**kwargs)
 
     @property
     def enabled(self) -> bool:
