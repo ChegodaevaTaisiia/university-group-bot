@@ -30,7 +30,7 @@ def build_scheduler(bot: Bot, sessionmaker: async_sessionmaker) -> AsyncIOSchedu
     scheduler.add_job(tick, "interval", minutes=1, id="reminder_tick", coalesce=True,
                       max_instances=1)
 
-    if settings.ai_enabled:
+    if settings.kb_school_url:
         async def refresh_kb() -> None:
             try:
                 from bot.services.kb_import.university_site import refresh_from_site

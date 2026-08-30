@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     ai_monthly_budget_usd: float = 5.0
     ai_user_hourly_limit: int = 15
 
+    # База знаний: страница твоей высшей школы / факультета на сайте вуза
+    kb_school_url: str | None = (
+        "https://www.rea.ru/structure/hs/vyisshaya-shkola-kibertehnologiy-matematiki-i-statistiki"
+    )
+
     @field_validator("admin_ids", mode="before")
     @classmethod
     def _split_admin_ids(cls, v: object) -> object:
@@ -67,7 +72,9 @@ class Settings(BaseSettings):
             return [v]
         return v
 
-    @field_validator("supergroup_id", "anthropic_api_key", "anthropic_base_url", mode="before")
+    @field_validator(
+        "supergroup_id", "anthropic_api_key", "anthropic_base_url", "kb_school_url", mode="before"
+    )
     @classmethod
     def _blank_to_none(cls, v: object) -> object:
         if isinstance(v, str) and not v.strip():
