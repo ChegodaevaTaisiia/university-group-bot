@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     # Локаль / время
     timezone: str = "Europe/Moscow"
     semester_start: date = date(2026, 9, 1)
+    greetings_hour: int = 9  # во сколько поздравлять с ДР и праздниками
+    bot_nickname: str = "Биби"  # обращение к боту в чате: «Биби, что задали?»
 
     # Хранилище
     data_dir: Path = Path("./data")

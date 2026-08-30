@@ -154,20 +154,6 @@ async def bind_topic(message: Message, session: AsyncSession, user: User | None)
     await message.answer(texts.BIND_SUBJECT_OK.format(subject=subject.name))
 
 
-# ───────────────────────── список группы ────────────────────────────────
-
-
-@router.callback_query(F.data == "p:roster", IsAdmin())
-async def roster(cb: CallbackQuery, session: AsyncSession):
-    users = list(await session.scalars(select(User).order_by(User.full_name)))
-    lines = [f"<b>Группа</b> — {len(users)} чел.", ""]
-    for u in users:
-        tag = " 👑" if u.is_admin else ("" if u.is_active else " (не активен)")
-        lines.append(f"• {u.full_name}{tag}")
-    await cb.message.answer("\n".join(lines))
-    await cb.answer()
-
-
 # ─────────────────────── настройка: демо / ИИ ──────────────────────────
 
 

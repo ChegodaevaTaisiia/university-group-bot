@@ -9,8 +9,11 @@ from bot.handlers import (
     assistant,
     common,
     faq,
+    fun,
+    group,
     homework,
     kb_admin,
+    panel_extra,
     reminders,
     schedule,
     stubs,
@@ -24,9 +27,12 @@ def build_router() -> Router:
     root.include_router(reminders.router)
     root.include_router(homework.router)
     root.include_router(faq.router)
+    root.include_router(group.router)
+    root.include_router(fun.router)
     root.include_router(kb_admin.router)
+    root.include_router(panel_extra.router)
     root.include_router(admin.router)
     root.include_router(stubs.router)
-    # assistant — последним: ловит любой свободный текст в личке как вопрос к ИИ
+    # assistant — последним: свободный текст в личке и обращение по имени в чате
     root.include_router(assistant.router)
     return root

@@ -60,11 +60,17 @@ class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tg_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    # NULL — запись из списка группы, человек ещё не активировал бота (/start)
+    tg_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[str | None] = mapped_column(String(64))
     full_name: Mapped[str] = mapped_column(String(200))
+    full_name_norm: Mapped[str] = mapped_column(String(200), default="", index=True)
     role: Mapped[Role] = mapped_column(String(16), default=Role.student)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    birthday_day: Mapped[int | None] = mapped_column(Integer)
+    birthday_month: Mapped[int | None] = mapped_column(Integer)
+    birthday_year: Mapped[int | None] = mapped_column(Integer)
 
     reminders: Mapped[list[Reminder]] = relationship(back_populates="user")
     prefs: Mapped[UserReminderPrefs | None] = relationship(
@@ -224,6 +230,31 @@ class FaqEntry(Base, TimestampMixin):
     answer: Mapped[str] = mapped_column(Text)
     keywords: Mapped[str] = mapped_column(String(400), default="")
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+
+class Holiday(Base, TimestampMixin):
+    """Праздник — бот поздравляет группу в этот день утром."""
+
+    __tablename__ = "holidays"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(120))
+    month: Mapped[int] = mapped_column(Integer)
+    day: Mapped[int] = mapped_column(Integer)
+    message: Mapped[str] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+
+class MediaItem(Base, TimestampMixin):
+    """Картинка, загруженная старостой: для поздравлений с ДР или для «мема дня»."""
+
+    __tablename__ = "media_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))  # birthday / meme
+    file_id: Mapped[str] = mapped_column(String(300))
+    added_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
 
 class AuditLog(Base):

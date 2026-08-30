@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import sys
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher
@@ -46,13 +48,17 @@ async def _setup_commands(bot: Bot, admin_ids: list[int]) -> None:
     common = [
         BotCommand(command="menu", description="Главное меню"),
         BotCommand(command="help", description="Помощь"),
+        BotCommand(command="ball", description="🔮 Магический шар: /ball вопрос"),
+        BotCommand(command="coin", description="🪙 Подбросить монетку"),
+        BotCommand(command="dice", description="🎲 Бросить кубик"),
+        BotCommand(command="who", description="🎯 Кого сегодня спросят"),
+        BotCommand(command="meme", description="😎 Мем дня"),
     ]
     admin = [
         BotCommand(command="panel", description="Панель старосты"),
-        BotCommand(command="menu", description="Главное меню"),
+        *common,
         BotCommand(command="topic", description="Привязать тему к предмету (внутри темы)"),
         BotCommand(command="reply", description="Ответить на вопрос студента: /reply N текст"),
-        BotCommand(command="help", description="Помощь"),
     ]
     try:
         await bot.set_my_commands(common, scope=BotCommandScopeDefault())
@@ -62,13 +68,25 @@ async def _setup_commands(bot: Bot, admin_ids: list[int]) -> None:
         log.warning("не удалось выставить меню команд", exc_info=True)
 
 
+def _force_utf8_console() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(Exception):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 async def main() -> None:
+    _force_utf8_console()
     settings = get_settings()
     settings.ensure_dirs()
 
     init_engine(settings.db_url)
     _run_migrations(settings.db_url)
     sessionmaker = get_sessionmaker()
+
+    from bot.services.greetings import seed_default_holidays
+
+    async with sessionmaker() as session:
+        await seed_default_holidays(session)
 
     bot = Bot(
         token=settings.bot_token,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -19,13 +20,15 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-if not config.get_main_option("sqlalchemy.url"):
-    url = get_settings().db_url.replace("+aiosqlite", "")
-    config.set_main_option("sqlalchemy.url", url)
-else:
-    config.set_main_option(
-        "sqlalchemy.url", config.get_main_option("sqlalchemy.url").replace("+aiosqlite", "")
-    )
+# Приоритет: -x db=... (или переменная ALEMBIC_DB_URL) → sqlalchemy.url → .env бота.
+# ALEMBIC_DB_URL нужен для автогенерации и тестов, чтобы НЕ трогать рабочую БД.
+_url = (
+    context.get_x_argument(as_dictionary=True).get("db")
+    or os.environ.get("ALEMBIC_DB_URL")
+    or config.get_main_option("sqlalchemy.url")
+    or get_settings().db_url
+)
+config.set_main_option("sqlalchemy.url", _url.replace("+aiosqlite", ""))
 
 
 def run_migrations_offline() -> None:

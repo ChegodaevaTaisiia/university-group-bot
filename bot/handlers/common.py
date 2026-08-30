@@ -9,12 +9,14 @@ from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
 from bot.config import get_settings
 from bot.db.models import Role, User
 from bot.keyboards.menu import main_menu
+from bot.utils.names import normalize_name
 
 router = Router(name="common")
 log = logging.getLogger(__name__)
@@ -69,14 +71,28 @@ async def reg_name(message: Message, state: FSMContext, session: AsyncSession):
         return
 
     settings = get_settings()
-    role = Role.admin if message.from_user.id in settings.admin_ids else Role.student
-    user = User(
-        tg_id=message.from_user.id,
-        username=message.from_user.username,
-        full_name=name,
-        role=role,
+    is_admin = message.from_user.id in settings.admin_ids
+    norm = normalize_name(name)
+
+    # если староста уже завела эту фамилию в списке группы — «занимаем» ту запись
+    user = await session.scalar(
+        select(User).where(User.tg_id.is_(None), User.full_name_norm == norm)
     )
-    session.add(user)
+    if user is not None:
+        user.tg_id = message.from_user.id
+        user.username = message.from_user.username
+        user.full_name = name
+        if is_admin:
+            user.role = Role.admin
+    else:
+        user = User(
+            tg_id=message.from_user.id,
+            username=message.from_user.username,
+            full_name=name,
+            full_name_norm=norm,
+            role=Role.admin if is_admin else Role.student,
+        )
+        session.add(user)
     await session.commit()
     await state.clear()
     await message.answer(
