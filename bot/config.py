@@ -9,7 +9,12 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    NoDecode,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 
 class Settings(BaseSettings):
@@ -18,6 +23,20 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # .env важнее переменных окружения ОС: у пользователя может быть глобально
+        # задан ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY для других проектов.
+        # В Docker .env-файла внутри контейнера нет → работает env_settings.
+        return init_settings, dotenv_settings, env_settings, file_secret_settings
 
     # Telegram
     bot_token: str
