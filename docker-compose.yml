@@ -7,4 +7,7 @@ services:
       DATA_DIR: /data
     volumes:
       - ./data:/data          # база и файлы лежат рядом в ./data — легко бэкапить
+    sysctls:
+      # на некоторых VPS IPv6 до Telegram висит — принудительно IPv4
+      - net.ipv6.conf.all.disable_ipv6=1
     # логи: docker compose logs -f bot

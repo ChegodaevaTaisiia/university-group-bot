@@ -74,6 +74,18 @@ def _force_utf8_console() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")
 
 
+def _make_session():
+    """Сессия для Telegram API: только IPv4 (на части VPS IPv6 до Telegram висит)
+    и увеличенный таймаут на медленных сетях."""
+    import socket
+
+    from aiogram.client.session.aiohttp import AiohttpSession
+
+    session = AiohttpSession(timeout=60)
+    session._connector_init["family"] = socket.AF_INET  # noqa: SLF001
+    return session
+
+
 async def main() -> None:
     _force_utf8_console()
     settings = get_settings()
@@ -91,6 +103,7 @@ async def main() -> None:
     bot = Bot(
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=_make_session(),
     )
     dp = Dispatcher(storage=MemoryStorage())
 
@@ -106,9 +119,19 @@ async def main() -> None:
     scheduler = build_scheduler(bot, sessionmaker)
     scheduler.start()
 
+    me = None
+    for attempt in range(5):
+        try:
+            me = await bot.get_me()
+            break
+        except Exception as e:  # noqa: BLE001
+            log.warning("get_me не прошёл (попытка %s): %s", attempt + 1, e)
+            await asyncio.sleep(5)
+    if me is None:
+        me = await bot.get_me()  # последняя попытка — пусть падает с понятной ошибкой
+
     await _setup_commands(bot, settings.admin_ids)
 
-    me = await bot.get_me()
     print(
         f"\n  ✅ Бот запущен: @{me.username}   "
         f"(ИИ: {'вкл' if settings.ai_enabled else 'выкл'}, "
