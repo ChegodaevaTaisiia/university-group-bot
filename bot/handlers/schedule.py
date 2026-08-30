@@ -104,6 +104,25 @@ async def sched_import_start_cb(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
 
 
+@router.callback_query(F.data == "p:sched_rasp", IsAdmin())
+async def sched_rasp_cb(cb: CallbackQuery):
+    from bot.config import get_settings
+    from bot.db.session import get_sessionmaker
+    from bot.services.rasp.sync import sync_schedule
+
+    await cb.answer()
+    if not get_settings().rasp_url:
+        await cb.message.answer(
+            "Не задана ссылка на расписание. Добавь в .env строку\n"
+            "<code>RASP_URL=https://rasp.rea.ru/?q=твоя-группа</code>\n"
+            "(скопируй адрес со страницы своей группы на rasp.rea.ru)."
+        )
+        return
+    await cb.message.answer("Загружаю расписание с rasp.rea.ru, это займёт ~минуту…")
+    res = await sync_schedule(get_sessionmaker(), cb.bot)
+    await cb.message.answer(res)
+
+
 def _parse_time(s: str) -> time:
     m = re.match(r"(\d{1,2})[:.\s](\d{2})", s.strip())
     if not m:

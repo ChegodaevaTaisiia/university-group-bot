@@ -44,6 +44,26 @@ def build_scheduler(bot: Bot, sessionmaker: async_sessionmaker) -> AsyncIOSchedu
         misfire_grace_time=3600,
     )
 
+    if settings.rasp_url:
+        async def check_rasp() -> None:
+            try:
+                from bot.services.rasp.sync import sync_schedule
+
+                res = await sync_schedule(sessionmaker, bot)
+                log.info("rasp sync: %s", res)
+            except Exception:  # noqa: BLE001
+                log.exception("rasp sync failed")
+
+        scheduler.add_job(
+            check_rasp,
+            "interval",
+            hours=settings.rasp_check_hours,
+            id="rasp_sync",
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=1800,
+        )
+
     if settings.kb_school_url:
         async def refresh_kb() -> None:
             try:

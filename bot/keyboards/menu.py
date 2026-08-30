@@ -48,7 +48,8 @@ def panel_home() -> InlineKeyboardMarkup:
 
 def panel_sched() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.button(text="📥 Загрузить расписание", callback_data="p:sched_import")
+    kb.button(text="🔄 Загрузить с rasp.rea.ru", callback_data="p:sched_rasp")
+    kb.button(text="📝 Загрузить вручную (текстом)", callback_data="p:sched_import")
     kb.button(text="📤 Опубликовать в чат группы", callback_data="p:sched_post")
     kb.button(text=texts.BTN_BACK, callback_data="p:home")
     kb.adjust(1)

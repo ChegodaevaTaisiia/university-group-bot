@@ -66,6 +66,10 @@ class Settings(BaseSettings):
         "https://www.rea.ru/structure/hs/vyisshaya-shkola-kibertehnologiy-matematiki-i-statistiki"
     )
 
+    # Ссылка на расписание группы с rasp.rea.ru (со страницы группы, с ?q=...)
+    rasp_url: str | None = None
+    rasp_check_hours: int = 3  # как часто проверять расписание на изменения
+
     @field_validator("admin_ids", mode="before")
     @classmethod
     def _split_admin_ids(cls, v: object) -> object:
@@ -76,7 +80,8 @@ class Settings(BaseSettings):
         return v
 
     @field_validator(
-        "supergroup_id", "anthropic_api_key", "anthropic_base_url", "kb_school_url", mode="before"
+        "supergroup_id", "anthropic_api_key", "anthropic_base_url", "kb_school_url",
+        "rasp_url", mode="before",
     )
     @classmethod
     def _blank_to_none(cls, v: object) -> object:
