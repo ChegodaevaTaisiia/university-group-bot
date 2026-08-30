@@ -17,8 +17,8 @@ def main_menu(is_admin: bool) -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardBuilder()
     kb.row(KeyboardButton(text=texts.BTN_SCHEDULE), KeyboardButton(text=texts.BTN_HOMEWORK))
     kb.row(KeyboardButton(text=texts.BTN_REMINDERS), KeyboardButton(text=texts.BTN_ASK))
-    kb.row(KeyboardButton(text=texts.BTN_GROUP), KeyboardButton(text=texts.BTN_FAQ))
-    kb.row(KeyboardButton(text=texts.BTN_FUN))
+    kb.row(KeyboardButton(text=texts.BTN_GROUP), KeyboardButton(text=texts.BTN_QUEUES))
+    kb.row(KeyboardButton(text=texts.BTN_FUN), KeyboardButton(text=texts.BTN_FAQ))
     if is_admin:
         kb.row(KeyboardButton(text=texts.BTN_ADMIN))
     return kb.as_markup(resize_keyboard=True)
@@ -35,6 +35,7 @@ def panel_home() -> InlineKeyboardMarkup:
     kb.button(text="📣 Написать всем", callback_data="p:broadcast")
     kb.button(text="📅 Расписание", callback_data="p:sched")
     kb.button(text="📚 Подтвердить ДЗ", callback_data="p:hw")
+    kb.button(text="🎓 Сдачи и темы", callback_data="p:queues")
     kb.button(text="🎓 База знаний", callback_data="p:kb")
     kb.button(text="👥 Список группы", callback_data="p:roster")
     kb.button(text="🎂 Дни рождения", callback_data="p:bdays")
@@ -62,6 +63,16 @@ def panel_kb() -> InlineKeyboardMarkup:
     kb.button(text="➕ Добавить запись вручную", callback_data="p:kb_add")
     kb.button(text="🧩 Дополнить преподавателя", callback_data="p:kb_enrich")
     kb.button(text="📋 Все записи / удалить", callback_data="p:kb_list")
+    kb.button(text=texts.BTN_BACK, callback_data="p:home")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def panel_queues() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📌 Закреплённые задания", callback_data="pq:pinned")
+    kb.button(text="📝 Списки тем", callback_data="pq:topics")
+    kb.button(text="🎓 Очереди на защиту", callback_data="pq:defense")
     kb.button(text=texts.BTN_BACK, callback_data="p:home")
     kb.adjust(1)
     return kb.as_markup()

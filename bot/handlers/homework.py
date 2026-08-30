@@ -84,15 +84,33 @@ async def hw_week(cb: CallbackQuery, session: AsyncSession):
 
 @router.callback_query(F.data.startswith("hw:subj:"))
 async def hw_by_subject(cb: CallbackQuery, session: AsyncSession):
+    from bot.db.models import PinnedTask
+
     sid = int(cb.data.split(":")[2])
+    pinned = list(
+        await session.scalars(
+            select(PinnedTask)
+            .where(PinnedTask.subject_id == sid, PinnedTask.is_active.is_(True))
+            .order_by(PinnedTask.deadline)
+        )
+    )
     items = list(
         await session.scalars(
             select(Homework)
-            .where(Homework.subject_id == sid, Homework.due_date >= date.today() - timedelta(days=1))
+            .where(Homework.subject_id == sid,
+                   Homework.due_date >= date.today() - timedelta(days=1))
             .order_by(Homework.due_date)
         )
     )
-    await cb.message.answer(_fmt_hw_list(items))
+    parts = []
+    if pinned:
+        pin_lines = ["📌 <b>Закреплено:</b>"]
+        for t in pinned:
+            dl = f" (до {t.deadline.strftime('%d.%m')})" if t.deadline else ""
+            pin_lines.append(f"• <b>{t.title}</b>{dl}" + (f"\n  {t.text}" if t.text else ""))
+        parts.append("\n".join(pin_lines))
+    parts.append(_fmt_hw_list(items))
+    await cb.message.answer("\n\n".join(parts))
     await cb.answer()
 
 

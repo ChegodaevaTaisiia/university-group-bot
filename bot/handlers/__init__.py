@@ -14,6 +14,8 @@ from bot.handlers import (
     homework,
     kb_admin,
     panel_extra,
+    panel_queues,
+    queues,
     reminders,
     schedule,
     stubs,
@@ -29,8 +31,10 @@ def build_router() -> Router:
     root.include_router(faq.router)
     root.include_router(group.router)
     root.include_router(fun.router)
+    root.include_router(queues.router)
     root.include_router(kb_admin.router)
     root.include_router(panel_extra.router)
+    root.include_router(panel_queues.router)
     root.include_router(admin.router)
     root.include_router(stubs.router)
     # assistant — последним: свободный текст в личке и обращение по имени в чате

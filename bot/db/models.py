@@ -267,6 +267,57 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
 
 
+# ─────────────── Закреплённые задания / темы / очереди ──────────────────
+
+
+class PinnedTask(Base, TimestampMixin):
+    """Долгое задание по предмету от старосты: «реферат до конца семестра»."""
+
+    __tablename__ = "pinned_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int] = mapped_column(ForeignKey("subjects.id"))
+    title: Mapped[str] = mapped_column(String(300))
+    text: Mapped[str] = mapped_column(Text, default="")
+    deadline: Mapped[date | None] = mapped_column(Date)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    subject: Mapped[Subject] = relationship()
+
+
+class TopicList(Base, TimestampMixin):
+    """Список тем/вариантов по предмету, которые студенты разбирают."""
+
+    __tablename__ = "topic_lists"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int | None] = mapped_column(ForeignKey("subjects.id"))
+    title: Mapped[str] = mapped_column(String(300))
+    deadline: Mapped[date | None] = mapped_column(Date)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    is_open: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    subject: Mapped[Subject | None] = relationship()
+    items: Mapped[list[TopicItem]] = relationship(
+        back_populates="topic_list", cascade="all, delete-orphan"
+    )
+
+
+class TopicItem(Base, TimestampMixin):
+    __tablename__ = "topic_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    list_id: Mapped[int] = mapped_column(ForeignKey("topic_lists.id"))
+    position: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    taken_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    taken_at: Mapped[datetime | None] = mapped_column()
+
+    topic_list: Mapped[TopicList] = relationship(back_populates="items")
+    student: Mapped[User | None] = relationship()
+
+
 # ───────────────── Заготовки под следующие этапы ─────────────────────────
 
 
@@ -310,15 +361,22 @@ class DocumentRequest(Base, TimestampMixin):
 
 
 class DefenseEvent(Base, TimestampMixin):
+    """Очередь на выступление/защиту по предмету."""
+
     __tablename__ = "defense_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     subject_id: Mapped[int | None] = mapped_column(ForeignKey("subjects.id"))
-    on_date: Mapped[date | None] = mapped_column(Date)
-    starts_at: Mapped[time | None] = mapped_column(Time)
+    description: Mapped[str | None] = mapped_column(Text)
     location: Mapped[str | None] = mapped_column(String(200))
-    slots_open: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_open: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+    subject: Mapped[Subject | None] = relationship()
+    slots: Mapped[list[DefenseSlot]] = relationship(
+        back_populates="event", cascade="all, delete-orphan"
+    )
 
 
 class DefenseSlot(Base, TimestampMixin):
@@ -327,5 +385,12 @@ class DefenseSlot(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     event_id: Mapped[int] = mapped_column(ForeignKey("defense_events.id"))
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
-    position: Mapped[int] = mapped_column(Integer)
+    on_date: Mapped[date | None] = mapped_column(Date)  # None = запас
+    pair_no: Mapped[int | None] = mapped_column(Integer)
     at_time: Mapped[time | None] = mapped_column(Time)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    is_reserve: Mapped[bool] = mapped_column(Boolean, default=False)
+    booked_at: Mapped[datetime | None] = mapped_column()
+
+    event: Mapped[DefenseEvent] = relationship(back_populates="slots")
+    student: Mapped[User | None] = relationship()
