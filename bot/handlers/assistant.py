@@ -18,6 +18,7 @@ from bot.config import get_settings
 from bot.db.models import EscalatedQuestion, User
 from bot.filters import IsRegistered
 from bot.services.ai.client import AiClient, BudgetExceeded
+from bot.services.ai.context import build_context
 from bot.services.ai.knowledge import relevant_entries, render_kb_block
 from bot.services.ai.prompts import ASSISTANT_SYSTEM
 
@@ -54,10 +55,11 @@ async def answer_question(
     thinking = await message.reply(texts.AI_THINKING)
     try:
         entries = await relevant_entries(session, question)
+        context = await build_context(session, render_kb_block(entries))
         res = await ai.complete(
             session=session,
             system=ASSISTANT_SYSTEM,
-            user_content=f"{render_kb_block(entries)}\n\nВОПРОС СТУДЕНТА: {question}",
+            user_content=f"{context}\n\nВОПРОС СТУДЕНТА: {question}",
             kind="assistant",
             user_id=user_id,
             max_tokens=600,
