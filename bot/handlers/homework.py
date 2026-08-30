@@ -262,7 +262,7 @@ async def _publish(bot: Bot, subject: Subject, hw: Homework) -> None:
                 await bot.send_message(
                     admin_id,
                     f"Тема для «{subject.name}» не привязана — опубликовала в общий чат. "
-                    f"Привяжи: /bind_subject {subject.name}",
+                    f"Привяжи: /topic {subject.name}",
                 )
         else:
             return
@@ -271,7 +271,7 @@ async def _publish(bot: Bot, subject: Subject, hw: Homework) -> None:
         log.exception("publish homework failed")
 
 
-@router.callback_query(F.data == "admin:hw", IsAdmin())
+@router.callback_query(F.data == "p:hw", IsAdmin())
 async def admin_hw_unconfirmed(cb: CallbackQuery, session: AsyncSession):
     items = list(
         await session.scalars(

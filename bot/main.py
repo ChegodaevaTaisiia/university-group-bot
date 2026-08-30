@@ -10,6 +10,11 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import (
+    BotCommand,
+    BotCommandScopeChat,
+    BotCommandScopeDefault,
+)
 
 from bot.config import get_settings
 from bot.db.session import get_sessionmaker, init_engine
@@ -34,6 +39,27 @@ def _run_migrations(db_url: str) -> None:
     cfg.set_main_option("script_location", str(root / "bot" / "migrations"))
     cfg.set_main_option("sqlalchemy.url", db_url)
     command.upgrade(cfg, "head")
+
+
+async def _setup_commands(bot: Bot, admin_ids: list[int]) -> None:
+    """Меню команд Telegram (появляется по «/»)."""
+    common = [
+        BotCommand(command="menu", description="Главное меню"),
+        BotCommand(command="help", description="Помощь"),
+    ]
+    admin = [
+        BotCommand(command="panel", description="Панель старосты"),
+        BotCommand(command="menu", description="Главное меню"),
+        BotCommand(command="topic", description="Привязать тему к предмету (внутри темы)"),
+        BotCommand(command="reply", description="Ответить на вопрос студента: /reply N текст"),
+        BotCommand(command="help", description="Помощь"),
+    ]
+    try:
+        await bot.set_my_commands(common, scope=BotCommandScopeDefault())
+        for admin_id in admin_ids:
+            await bot.set_my_commands(admin, scope=BotCommandScopeChat(chat_id=admin_id))
+    except Exception:  # noqa: BLE001
+        log.warning("не удалось выставить меню команд", exc_info=True)
 
 
 async def main() -> None:
@@ -61,6 +87,8 @@ async def main() -> None:
 
     scheduler = build_scheduler(bot, sessionmaker)
     scheduler.start()
+
+    await _setup_commands(bot, settings.admin_ids)
 
     me = await bot.get_me()
     print(

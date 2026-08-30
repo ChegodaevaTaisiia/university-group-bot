@@ -29,14 +29,45 @@ def cancel_menu() -> ReplyKeyboardMarkup:
     return kb.as_markup(resize_keyboard=True)
 
 
-def admin_menu() -> InlineKeyboardMarkup:
+def panel_home() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.button(text="📣 Написать всем", callback_data="admin:broadcast")
-    kb.button(text="📅 Расписание", callback_data="admin:schedule")
-    kb.button(text="📚 Подтвердить ДЗ", callback_data="admin:hw")
-    kb.button(text="🤖 База знаний", callback_data="admin:kb")
-    kb.button(text="👥 Список группы", callback_data="admin:roster")
-    kb.button(text="🧪 Проверить ИИ", callback_data="admin:ai_selftest")
+    kb.button(text="📣 Написать всем", callback_data="p:broadcast")
+    kb.button(text="📅 Расписание", callback_data="p:sched")
+    kb.button(text="📚 Подтвердить ДЗ", callback_data="p:hw")
+    kb.button(text="🎓 База знаний", callback_data="p:kb")
+    kb.button(text="👥 Список группы", callback_data="p:roster")
+    kb.button(text="🔗 Привязать тему к предмету", callback_data="p:topic_help")
+    kb.button(text="🛠 Настройка", callback_data="p:setup")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def panel_sched() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📥 Загрузить расписание", callback_data="p:sched_import")
+    kb.button(text="📤 Опубликовать в чат группы", callback_data="p:sched_post")
+    kb.button(text=texts.BTN_BACK, callback_data="p:home")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def panel_kb() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔄 Обновить с сайта вуза", callback_data="p:kb_refresh")
+    kb.button(text="➕ Добавить запись вручную", callback_data="p:kb_add")
+    kb.button(text="🧩 Дополнить преподавателя", callback_data="p:kb_enrich")
+    kb.button(text="📋 Все записи / удалить", callback_data="p:kb_list")
+    kb.button(text=texts.BTN_BACK, callback_data="p:home")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def panel_setup() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🤖 Проверить ИИ", callback_data="p:ai_test")
+    kb.button(text="🧪 Заполнить демо-данными", callback_data="p:seed")
+    kb.button(text="🧹 Очистить демо-данные", callback_data="p:wipe")
+    kb.button(text=texts.BTN_BACK, callback_data="p:home")
     kb.adjust(1)
     return kb.as_markup()
 

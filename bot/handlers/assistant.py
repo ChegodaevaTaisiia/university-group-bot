@@ -118,7 +118,7 @@ async def escalate(cb: CallbackQuery, session: AsyncSession, user: User, bot: Bo
             await bot.send_message(
                 admin_id,
                 f"❓ Вопрос от {user.full_name} (@{user.username or '—'}):\n\n{q}\n\n"
-                f"Ответь командой: <code>/answer {eq.id} твой ответ</code>",
+                f"Ответить: <code>/reply {eq.id} твой ответ</code>",
             )
         except Exception:  # noqa: BLE001
             pass
@@ -127,13 +127,13 @@ async def escalate(cb: CallbackQuery, session: AsyncSession, user: User, bot: Bo
     await cb.answer()
 
 
-@router.message(Command("answer"))
+@router.message(Command("reply"))
 async def answer_escalated(message: Message, session: AsyncSession, user: User, bot: Bot):
     if not user or not user.is_admin:
         return
     parts = message.text.split(maxsplit=2)
     if len(parts) < 3 or not parts[1].isdigit():
-        await message.answer("Формат: /answer <id> <текст ответа>")
+        await message.answer("Формат: /reply <номер вопроса> <текст ответа>")
         return
     eq = await session.get(EscalatedQuestion, int(parts[1]))
     if eq is None:

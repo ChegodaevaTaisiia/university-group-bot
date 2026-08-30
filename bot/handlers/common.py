@@ -96,9 +96,20 @@ async def cmd_cancel(message: Message, state: FSMContext, user: User | None):
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, user: User | None):
-    await message.answer(
-        texts.MAIN_MENU, reply_markup=main_menu(bool(user and user.is_admin))
+    is_admin = bool(user and user.is_admin)
+    text = (
+        "Пользуйся кнопками меню снизу:\n"
+        "📅 Расписание · 📚 Домашка · ⏰ Напоминания · 🤖 Спросить бота · ❓ ЧаВо\n\n"
+        "Просто напиши боту вопрос об учёбе — отвечу по тому, что знаю."
     )
+    if is_admin:
+        text += (
+            "\n\n<b>Тебе как старосте:</b>\n"
+            "⚙️ Панель старосты — рассылки, расписание, база знаний, настройка.\n"
+            "<code>/topic Матанализ</code> — внутри темы супергруппы, привязать её к предмету.\n"
+            "<code>/reply N текст</code> — ответить на вопрос студента."
+        )
+    await message.answer(text, reply_markup=main_menu(is_admin))
 
 
 @router.message(Command("chatid"))

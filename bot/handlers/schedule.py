@@ -97,6 +97,13 @@ async def sched_import_start(message: Message, state: FSMContext):
     await state.set_state(SchedImport.waiting_text)
 
 
+@router.callback_query(F.data == "p:sched_import", IsAdmin())
+async def sched_import_start_cb(cb: CallbackQuery, state: FSMContext):
+    await cb.message.answer(_IMPORT_HELP, reply_markup=cancel_menu())
+    await state.set_state(SchedImport.waiting_text)
+    await cb.answer()
+
+
 def _parse_time(s: str) -> time:
     m = re.match(r"(\d{1,2})[:.\s](\d{2})", s.strip())
     if not m:
@@ -157,24 +164,24 @@ async def sched_import_apply(message: Message, state: FSMContext, session: Async
     )
 
 
-@router.callback_query(F.data == "admin:schedule", IsAdmin())
-async def admin_schedule_hint(cb: CallbackQuery):
-    await cb.message.answer(
-        "Импорт расписания: /schedule_import\n"
-        "Публикация в супергруппу: /schedule_post"
-    )
-    await cb.answer()
-
-
-@router.message(Command("schedule_post"), IsAdmin())
-async def schedule_post(message: Message, session: AsyncSession):
+async def _publish_week(bot, session: AsyncSession) -> str:
     settings = get_settings()
     if settings.supergroup_id is None:
-        await message.answer("SUPERGROUP_ID не задан в .env.")
-        return
+        return "Группа не подключена (нет SUPERGROUP_ID в .env)."
     today = date.today()
     monday = today - timedelta(days=today.weekday())
     days = await lessons_for_week(session, monday, settings.semester_start)
     text = "<b>📅 Расписание на неделю</b>\n\n" + "\n\n".join(format_day(d) for d in days)
-    await message.bot.send_message(settings.supergroup_id, text)
-    await message.answer("Опубликовала в супергруппу.")
+    await bot.send_message(settings.supergroup_id, text)
+    return "Опубликовала расписание в чат группы."
+
+
+@router.message(Command("schedule_post"), IsAdmin())
+async def schedule_post(message: Message, session: AsyncSession):
+    await message.answer(await _publish_week(message.bot, session))
+
+
+@router.callback_query(F.data == "p:sched_post", IsAdmin())
+async def schedule_post_cb(cb: CallbackQuery, session: AsyncSession):
+    await cb.answer()
+    await cb.message.answer(await _publish_week(cb.bot, session))
