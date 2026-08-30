@@ -13,12 +13,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.db.models import KbEntry
 
-_MAX_ENTRIES = 40
+# Модель Haiku дешёвая и с большим контекстом — при типичной базе (~250 коротких
+# записей ≈ 8k токенов) отдаём ВСЮ базу целиком, без отбора. Фильтр включается
+# только если база разрастётся за этот порог.
+_MAX_ENTRIES = 500
 _STOP = set("и в на по о об от до за что как кто это для с у не ли а бы же".split())
 
 
 def _tokens(text: str) -> set[str]:
     return {w for w in re.findall(r"[а-яёa-z0-9]+", text.lower()) if w not in _STOP and len(w) > 2}
+
+
+def _fuzzy_hits(q: set[str], hay: set[str]) -> int:
+    """Совпадения + частичные (китовой↔китова, нефедова↔нефедов)."""
+    hits = len(q & hay)
+    for a in q - hay:
+        if any(a.startswith(b[:5]) or b.startswith(a[:5]) for b in hay if len(b) > 4):
+            hits += 1
+    return hits
 
 
 async def relevant_entries(session: AsyncSession, question: str) -> list[KbEntry]:
@@ -32,7 +44,7 @@ async def relevant_entries(session: AsyncSession, question: str) -> list[KbEntry
     scored = []
     for e in entries:
         hay = _tokens(f"{e.title} {e.body} {' '.join(str(v) for v in e.attrs.values())}")
-        scored.append((len(q & hay), e))
+        scored.append((_fuzzy_hits(q, hay), e))
     scored.sort(key=lambda x: x[0], reverse=True)
     return [e for score, e in scored[:_MAX_ENTRIES] if score > 0] or entries[:_MAX_ENTRIES]
 

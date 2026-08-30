@@ -42,7 +42,13 @@ def _rate_ok(user_id: int, limit: int) -> bool:
 
 
 async def answer_question(
-    message: Message, session: AsyncSession, ai: AiClient, question: str, user_id: int | None
+    message: Message,
+    session: AsyncSession,
+    ai: AiClient,
+    question: str,
+    user_id: int | None,
+    *,
+    name: str | None = None,
 ) -> None:
     if not ai.enabled:
         await message.reply(texts.AI_DISABLED)
@@ -53,13 +59,14 @@ async def answer_question(
         return
 
     thinking = await message.reply(texts.AI_THINKING)
+    who = f"\n\nК тебе обращается: {name}. Начни ответ с обращения по имени." if name else ""
     try:
         entries = await relevant_entries(session, question)
         context = await build_context(session, render_kb_block(entries))
         res = await ai.complete(
             session=session,
             system=ASSISTANT_SYSTEM,
-            user_content=f"{context}\n\nВОПРОС СТУДЕНТА: {question}",
+            user_content=f"{context}\n\nВОПРОС СТУДЕНТА: {question}{who}",
             kind="assistant",
             user_id=user_id,
             max_tokens=600,
@@ -103,7 +110,7 @@ async def ask_prompt(message: Message):
 async def free_question(message: Message, session: AsyncSession, ai: AiClient, user: User):
     q = message.text.strip()
     if len(q) >= 4:
-        await answer_question(message, session, ai, q, user.id)
+        await answer_question(message, session, ai, q, user.id, name=user.full_name.split()[0])
 
 
 # ──────────────── обращение по имени в групповом чате ───────────────────
@@ -132,7 +139,10 @@ async def nickname_wake(message: Message, session: AsyncSession, ai: AiClient, u
     if len(question) < 3:
         await message.reply(texts.AI_ASK)
         return
-    await answer_question(message, session, ai, question, user.id if user else None)
+    name = user.full_name.split()[0] if user else (message.from_user.first_name or None)
+    await answer_question(
+        message, session, ai, question, user.id if user else None, name=name
+    )
 
 
 # ─────────────────────────── эскалация ─────────────────────────────────

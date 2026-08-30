@@ -43,12 +43,26 @@ async def homework_block(session: AsyncSession) -> str:
 async def schedule_block(session: AsyncSession) -> str:
     settings = get_settings()
     today = date.today()
+    sem = settings.semester_start
     monday = today - timedelta(days=today.weekday())
-    days = await lessons_for_week(session, monday, settings.semester_start)
+
+    # текущая неделя; если пусто (каникулы/до старта семестра) — ближайшая с парами
+    days = await lessons_for_week(session, monday, sem)
+    label = "текущая неделя"
+    if not any(d.lessons for d in days):
+        for off in range(1, 4):
+            cand = await lessons_for_week(session, monday + timedelta(weeks=off), sem)
+            if any(d.lessons for d in cand):
+                days, label = cand, f"ближайшая неделя с парами (через {off})"
+                break
     if not any(d.lessons for d in days):
         return "РАСПИСАНИЕ: не заполнено."
+
+    head = (
+        f"РАСПИСАНИЕ ({label}). Сегодня {today.strftime('%d.%m')}, "
+        f"{WEEKDAYS[today.weekday()]}. Завтра — {WEEKDAYS[(today.weekday() + 1) % 7]}."
+    )
     body = "\n\n".join(format_day(d) for d in days)
-    head = f"РАСПИСАНИЕ НА НЕДЕЛЮ (сегодня {today.strftime('%d.%m')}, {WEEKDAYS[today.weekday()]}):"
     return f"{head}\n{body}"
 
 
