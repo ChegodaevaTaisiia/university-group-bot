@@ -111,12 +111,16 @@ async def free_question(message: Message, session: AsyncSession, ai: AiClient, u
 _NICK_RE_CACHE: dict[str, re.Pattern] = {}
 
 
-def _nick_pattern(nick: str) -> re.Pattern:
-    if nick not in _NICK_RE_CACHE:
-        _NICK_RE_CACHE[nick] = re.compile(
-            rf"^\s*{re.escape(nick)}[\s,!:—-]+(.+)", re.IGNORECASE | re.DOTALL
+def _nick_pattern(nicknames: str) -> re.Pattern:
+    if nicknames not in _NICK_RE_CACHE:
+        names = sorted(
+            (n.strip() for n in nicknames.split(",") if n.strip()), key=len, reverse=True
         )
-    return _NICK_RE_CACHE[nick]
+        alts = "|".join(re.escape(n) for n in names) or "плеша"
+        _NICK_RE_CACHE[nicknames] = re.compile(
+            rf"^\s*(?:{alts})[\s,!.:—-]+(.+)", re.IGNORECASE | re.DOTALL
+        )
+    return _NICK_RE_CACHE[nicknames]
 
 
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text)
