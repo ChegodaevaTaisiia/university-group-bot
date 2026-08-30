@@ -46,6 +46,13 @@ class Settings(BaseSettings):
             return [v]
         return v
 
+    @field_validator("supergroup_id", "anthropic_api_key", mode="before")
+    @classmethod
+    def _blank_to_none(cls, v: object) -> object:
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
     @property
     def tz(self) -> ZoneInfo:
         return ZoneInfo(self.timezone)
