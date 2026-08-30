@@ -75,14 +75,19 @@ def _force_utf8_console() -> None:
 
 
 def _make_session():
-    """Сессия для Telegram API: только IPv4 (на части VPS IPv6 до Telegram висит)
-    и увеличенный таймаут на медленных сетях."""
+    """Сессия для Telegram API. TELEGRAM_IP_FAMILY=v6|v4 форсит семейство адресов
+    (на части VPS один из протоколов до api.telegram.org не работает)."""
+    import os
     import socket
 
     from aiogram.client.session.aiohttp import AiohttpSession
 
     session = AiohttpSession(timeout=60)
-    session._connector_init["family"] = socket.AF_INET  # noqa: SLF001
+    fam = os.getenv("TELEGRAM_IP_FAMILY", "").lower()
+    if fam in ("v6", "ipv6", "6"):
+        session._connector_init["family"] = socket.AF_INET6  # noqa: SLF001
+    elif fam in ("v4", "ipv4", "4"):
+        session._connector_init["family"] = socket.AF_INET  # noqa: SLF001
     return session
 
 
