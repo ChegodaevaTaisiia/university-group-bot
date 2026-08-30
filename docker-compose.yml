@@ -1,0 +1,13 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - bot_data:/data
+    # логи смотреть: docker compose logs -f bot
+
+volumes:
+  bot_data:

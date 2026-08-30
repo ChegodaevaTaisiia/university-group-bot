@@ -1,0 +1,21 @@
+# Вариант без Docker: systemd-юнит.
+# Положить в /etc/systemd/system/group-bot.service, затем:
+#   systemctl daemon-reload && systemctl enable --now group-bot
+
+[Unit]
+Description=University group Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=groupbot
+WorkingDirectory=/opt/group-bot
+EnvironmentFile=/opt/group-bot/.env
+Environment=DATA_DIR=/opt/group-bot/data
+ExecStart=/opt/group-bot/.venv/bin/python -m bot.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
