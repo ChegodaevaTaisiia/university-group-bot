@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -47,11 +49,11 @@ class NewDefense(StatesGroup):
     subject = State()
     title = State()
     description = State()
-    slots = State()
 
 
-class AddSlots(StatesGroup):
-    waiting = State()
+class SlotPick(StatesGroup):
+    picking = State()      # выбор пар из расписания галочками
+    manual = State()       # ручной ввод строками (запасной вариант)
 
 
 async def _subjects(session: AsyncSession) -> list[Subject]:
@@ -404,64 +406,156 @@ async def ev_title(message: Message, state: FSMContext):
     await message.answer("Описание/что подготовить. Или «-»:")
 
 
+_WD_SHORT = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
+
+
 @router.message(NewDefense.description, F.text)
-async def ev_desc(message: Message, state: FSMContext):
+async def ev_desc(message: Message, state: FSMContext, session: AsyncSession):
     desc = None if message.text.strip() == "-" else message.text.strip()
-    await state.update_data(description=desc)
-    await state.set_state(NewDefense.slots)
-    await message.answer(
-        "Пришли окошки — по строке на пару:\n\n"
-        "<code>10.10 3 пара\n10.10 4 пара x2\n15.10 2 пара x3</code>\n\n"
-        "<code>x2</code> — сколько человек можно на эту пару."
-    )
+    await state.update_data(description=desc, mode="new", selected=[], capacity=1)
+    await _open_slot_picker(message, state, session)
 
 
-@router.message(NewDefense.slots, F.text)
-async def ev_slots(message: Message, state: FSMContext, session: AsyncSession, user: User):
-    parsed, bad = queues.parse_slot_lines(message.text)
-    if bad:
-        await message.answer("Не разобрала строки:\n" + "\n".join(bad[:8]))
-        return
-    if not parsed:
-        await message.answer("Пусто. Пришли окошки.")
-        return
+async def _open_slot_picker(target, state: FSMContext, session: AsyncSession) -> None:  # noqa: ANN001
     data = await state.get_data()
-    ev = DefenseEvent(
-        subject_id=data["subject_id"], title=data["title"],
-        description=data["description"], created_by=user.id,
+    pairs = await queues.subject_upcoming_pairs(session, data.get("subject_id"))
+    if not pairs:
+        await state.set_state(SlotPick.manual)
+        await target.answer(
+            "По этому предмету в расписании пар не нашла. Введи окошки строками:\n"
+            "<code>10.10 3 пара\n15.10 2 пара x3</code>",
+            reply_markup=cancel_menu(),
+        )
+        return
+    await state.update_data(pairs=[
+        {"d": p["date"].isoformat(), "pair": p["pair"],
+         "t": p["time"].strftime("%H:%M") if p["time"] else None} for p in pairs[:24]
+    ])
+    await state.set_state(SlotPick.picking)
+    await target.answer(
+        "Отметь пары, на которых можно сдавать, и сколько человек на пару:",
+        reply_markup=_picker_kb(await state.get_data()),
     )
-    session.add(ev)
-    await session.flush()
-    n = await queues.create_slots(session, ev, parsed)
-    await state.clear()
-    await message.answer(f"Создала очередь: {n} окошек.", reply_markup=main_menu(True))
 
 
-@router.callback_query(F.data.startswith("pq:ev_slots:"), IsAdmin())
-async def ev_more_slots(cb: CallbackQuery, state: FSMContext):
-    await state.set_state(AddSlots.waiting)
-    await state.update_data(event_id=int(cb.data.split(":")[2]))
+def _picker_kb(data: dict):  # noqa: ANN001
+    selected = set(data.get("selected", []))
+    cap = data.get("capacity", 1)
+    kb = InlineKeyboardBuilder()
+    for i, p in enumerate(data["pairs"]):
+        d = date.fromisoformat(p["d"])
+        mark = "☑️" if i in selected else "▫️"
+        t = f" {p['t']}" if p["t"] else ""
+        kb.button(
+            text=f"{mark} {d.day:02d}.{d.month:02d} ({_WD_SHORT[d.weekday()]}) {p['pair']} пара{t}",
+            callback_data=f"evslot:t:{i}",
+        )
+    kb.adjust(1)
+    caps = InlineKeyboardBuilder()
+    for n in (1, 2, 3, 4, 5):
+        caps.button(text=f"{'✅' if n == cap else ''}{n} чел", callback_data=f"evslot:cap:{n}")
+    caps.adjust(5)
+    tail = InlineKeyboardBuilder()
+    tail.button(text="✅ Создать окошки", callback_data="evslot:done")
+    tail.button(text="✍️ Ввести вручную", callback_data="evslot:manual")
+    tail.adjust(1)
+    kb.attach(caps)
+    kb.attach(tail)
+    return kb.as_markup()
+
+
+@router.callback_query(SlotPick.picking, F.data.startswith("evslot:t:"))
+async def picker_toggle(cb: CallbackQuery, state: FSMContext):
+    i = int(cb.data.split(":")[2])
+    data = await state.get_data()
+    sel = set(data.get("selected", []))
+    sel.symmetric_difference_update({i})
+    await state.update_data(selected=sorted(sel))
+    await cb.message.edit_reply_markup(reply_markup=_picker_kb(await state.get_data()))
+    await cb.answer()
+
+
+@router.callback_query(SlotPick.picking, F.data.startswith("evslot:cap:"))
+async def picker_cap(cb: CallbackQuery, state: FSMContext):
+    await state.update_data(capacity=int(cb.data.split(":")[2]))
+    await cb.message.edit_reply_markup(reply_markup=_picker_kb(await state.get_data()))
+    await cb.answer()
+
+
+@router.callback_query(SlotPick.picking, F.data == "evslot:manual")
+async def picker_to_manual(cb: CallbackQuery, state: FSMContext):
+    await state.set_state(SlotPick.manual)
     await cb.message.answer(
-        "Пришли новые окошки:\n<code>20.10 3 пара x2</code>", reply_markup=cancel_menu()
+        "Введи окошки строками:\n<code>10.10 3 пара\n15.10 2 пара x3</code>",
+        reply_markup=cancel_menu(),
     )
     await cb.answer()
 
 
-@router.message(AddSlots.waiting, F.text)
-async def add_slots_apply(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
+@router.callback_query(SlotPick.picking, F.data == "evslot:done")
+async def picker_done(cb: CallbackQuery, state: FSMContext, session: AsyncSession,
+                      user: User, bot: Bot):
+    data = await state.get_data()
+    sel = data.get("selected", [])
+    if not sel:
+        await cb.answer("Отметь хотя бы одну пару.", show_alert=True)
+        return
+    cap = data.get("capacity", 1)
+    parsed = [
+        {"date": date.fromisoformat(data["pairs"][i]["d"]),
+         "pair": data["pairs"][i]["pair"], "count": cap}
+        for i in sel
+    ]
+    await _finish_slots(cb.message, state, session, parsed, user, bot)
+    await cb.answer()
+
+
+@router.message(SlotPick.manual, F.text)
+async def picker_manual_apply(message: Message, state: FSMContext, session: AsyncSession,
+                              user: User, bot: Bot):
     parsed, bad = queues.parse_slot_lines(message.text)
     if bad or not parsed:
-        await message.answer("Не разобрала. Формат: <code>20.10 3 пара x2</code>")
+        await message.answer("Не разобрала. Формат: <code>10.10 3 пара x2</code>")
         return
+    await _finish_slots(message, state, session, parsed, user, bot)
+
+
+async def _finish_slots(target, state: FSMContext, session: AsyncSession,  # noqa: ANN001
+                        parsed: list[dict], user: User, bot: Bot) -> None:
     data = await state.get_data()
-    ev = await session.get(DefenseEvent, data["event_id"])
-    n = await queues.create_slots(session, ev, parsed)
-    await state.clear()
-    await message.answer(f"Добавила {n} окошек.", reply_markup=main_menu(True))
-    settings = get_settings()
-    if settings.supergroup_id:
-        with_ = ", ".join(f"{p['date'].strftime('%d.%m')} ({p['pair']} пара)" for p in parsed)
-        await bot.send_message(
-            settings.supergroup_id,
-            f"🎓 В очереди «{ev.title}» новые окошки: {with_}. Записывайтесь — «🎓 Сдачи».",
+    if data.get("mode") == "add":
+        ev = await session.get(DefenseEvent, data["event_id"])
+        n = await queues.create_slots(session, ev, parsed)
+        note = f"Добавила {n} окошек."
+        settings = get_settings()
+        if settings.supergroup_id:
+            when = ", ".join(
+                f"{p['date'].strftime('%d.%m')} ({p['pair']} пара)" for p in parsed
+            )
+            await bot.send_message(
+                settings.supergroup_id,
+                f"🎓 В очереди «{ev.title}» новые окошки: {when}. Записывайтесь — «🎓 Сдачи».",
+            )
+    else:
+        ev = DefenseEvent(
+            subject_id=data["subject_id"], title=data["title"],
+            description=data.get("description"), created_by=user.id,
         )
+        session.add(ev)
+        await session.flush()
+        n = await queues.create_slots(session, ev, parsed)
+        note = f"Создала очередь: {n} окошек."
+    await state.clear()
+    await target.answer(note, reply_markup=main_menu(True))
+
+
+@router.callback_query(F.data.startswith("pq:ev_slots:"), IsAdmin())
+async def ev_more_slots(cb: CallbackQuery, state: FSMContext, session: AsyncSession):
+    ev_id = int(cb.data.split(":")[2])
+    ev = await session.get(DefenseEvent, ev_id)
+    await state.set_state(SlotPick.picking)
+    await state.update_data(
+        mode="add", event_id=ev_id, subject_id=ev.subject_id, selected=[], capacity=1
+    )
+    await _open_slot_picker(cb.message, state, session)
+    await cb.answer()

@@ -68,6 +68,43 @@ async def _pair_time(session: AsyncSession, on: date, pair: int) -> time | None:
     return row
 
 
+async def subject_upcoming_pairs(
+    session: AsyncSession, subject_id: int | None, *, weeks: int = 6
+) -> list[dict]:
+    """Ближайшие даты и пары, когда стоит этот предмет (по расписанию)."""
+    from bot.db.models import WeekParity
+    from bot.services.schedule_repo import week_parity
+
+    settings = get_settings()
+    lessons = list(
+        await session.scalars(
+            select(Lesson).where(Lesson.subject_id == subject_id)
+        )
+    ) if subject_id else []
+    if not lessons:
+        return []
+
+    by_day: dict[int, list[Lesson]] = {}
+    for les in lessons:
+        by_day.setdefault(les.weekday, []).append(les)
+
+    today = date.today()
+    out: list[dict] = []
+    for offset in range(weeks * 7):
+        d = today + timedelta(days=offset + 1)
+        if d < settings.semester_start:
+            continue
+        parity = week_parity(d, settings.semester_start)
+        for les in by_day.get(d.weekday(), []):
+            if les.week_parity in (WeekParity.any, parity):
+                out.append({
+                    "date": d, "pair": les.pair_no, "time": les.starts_at,
+                    "kind": les.kind,
+                })
+    out.sort(key=lambda x: (x["date"], x["pair"]))
+    return out
+
+
 async def create_slots(session: AsyncSession, event: DefenseEvent, parsed: list[dict]) -> int:
     created = 0
     for row in parsed:
