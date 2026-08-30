@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message
+from aiogram.types import ErrorEvent, Message
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +21,21 @@ from bot.utils.names import normalize_name
 
 router = Router(name="common")
 log = logging.getLogger(__name__)
+
+
+@router.errors()
+async def on_error(event: ErrorEvent) -> bool:
+    log.exception("Ошибка в обработчике: %s", event.exception)
+    upd = event.update
+    msg = getattr(upd, "message", None) or getattr(getattr(upd, "callback_query", None), "message", None)
+    if msg is not None:
+        with contextlib.suppress(Exception):
+            await msg.answer(texts.SOMETHING_WRONG)
+    cb = getattr(upd, "callback_query", None)
+    if cb is not None:
+        with contextlib.suppress(Exception):
+            await cb.answer()
+    return True
 
 
 class Register(StatesGroup):
