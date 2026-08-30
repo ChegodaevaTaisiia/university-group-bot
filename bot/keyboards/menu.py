@@ -69,6 +69,7 @@ def panel_kb() -> InlineKeyboardMarkup:
 def panel_setup() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="🤖 Проверить ИИ", callback_data="p:ai_test")
+    kb.button(text="🎂 Проверить поздравления сейчас", callback_data="p:test_greet")
     kb.button(text="🧪 Заполнить демо-данными", callback_data="p:seed")
     kb.button(text="🧹 Очистить демо-данные", callback_data="p:wipe")
     kb.button(text=texts.BTN_BACK, callback_data="p:home")

@@ -169,6 +169,19 @@ async def do_wipe(cb: CallbackQuery, session: AsyncSession):
     await cb.answer()
 
 
+@router.callback_query(F.data == "p:test_greet", IsAdmin())
+async def do_test_greet(cb: CallbackQuery, bot: Bot):
+    from bot.db.session import get_sessionmaker
+    from bot.services.greetings import run_morning_greetings
+
+    await cb.answer()
+    await run_morning_greetings(bot, get_sessionmaker())
+    await cb.message.answer(
+        "Прогнала поздравления (как в 9:00). Если сегодня чей-то ДР или праздник — "
+        "они улетели в супергруппу; если тихо — значит на сегодня никого нет."
+    )
+
+
 @router.callback_query(F.data == "p:ai_test", IsAdmin())
 async def ai_selftest(cb: CallbackQuery, session: AsyncSession, ai: AiClient):
     await cb.answer()
