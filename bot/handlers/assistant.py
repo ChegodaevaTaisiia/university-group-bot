@@ -21,6 +21,7 @@ from bot.services.ai.client import AiClient, BudgetExceeded
 from bot.services.ai.context import build_context
 from bot.services.ai.knowledge import relevant_entries, render_kb_block
 from bot.services.ai.prompts import ASSISTANT_SYSTEM
+from bot.utils.names import first_name
 
 router = Router(name="assistant")
 log = logging.getLogger(__name__)
@@ -110,7 +111,7 @@ async def ask_prompt(message: Message):
 async def free_question(message: Message, session: AsyncSession, ai: AiClient, user: User):
     q = message.text.strip()
     if len(q) >= 4:
-        await answer_question(message, session, ai, q, user.id, name=user.full_name.split()[0])
+        await answer_question(message, session, ai, q, user.id, name=first_name(user.full_name))
 
 
 # ──────────────── обращение по имени в групповом чате ───────────────────
@@ -139,7 +140,7 @@ async def nickname_wake(message: Message, session: AsyncSession, ai: AiClient, u
     if len(question) < 3:
         await message.reply(texts.AI_ASK)
         return
-    name = user.full_name.split()[0] if user else (message.from_user.first_name or None)
+    name = first_name(user.full_name) if user else (message.from_user.first_name or None)
     await answer_question(
         message, session, ai, question, user.id if user else None, name=name
     )

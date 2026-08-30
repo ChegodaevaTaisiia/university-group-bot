@@ -17,7 +17,7 @@ from bot import texts
 from bot.config import get_settings
 from bot.db.models import Role, User
 from bot.keyboards.menu import main_menu
-from bot.utils.names import normalize_name
+from bot.utils.names import first_name, normalize_name
 
 router = Router(name="common")
 log = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ async def cmd_start(message: Message, state: FSMContext, session: AsyncSession, 
     await state.clear()
     if user is not None:
         await message.answer(
-            texts.WELCOME_BACK.format(name=user.full_name.split()[0]),
+            texts.WELCOME_BACK.format(name=first_name(user.full_name)),
             reply_markup=main_menu(user.is_admin),
         )
         return
@@ -112,7 +112,7 @@ async def reg_name(message: Message, state: FSMContext, session: AsyncSession):
     await session.commit()
     await state.clear()
     await message.answer(
-        texts.REGISTERED.format(name=name.split()[0]),
+        texts.REGISTERED.format(name=first_name(name)),
         reply_markup=main_menu(user.is_admin),
     )
 
