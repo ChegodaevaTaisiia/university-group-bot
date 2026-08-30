@@ -16,6 +16,7 @@ from bot.filters import IsAdmin, IsRegistered
 from bot.keyboards.menu import admin_menu, cancel_menu, yes_no
 from bot.services.ai.client import AiClient
 from bot.services.broadcast import broadcast_to_students
+from bot.services.seed import seed_demo, wipe_demo
 
 router = Router(name="admin")
 
@@ -34,6 +35,16 @@ async def admin_root(message: Message):
 @router.message(F.text.casefold() == texts.BTN_ADMIN.casefold(), IsRegistered())
 async def admin_denied(message: Message):
     await message.answer(texts.NOT_ADMIN)
+
+
+@router.message(Command("seed_demo"), IsAdmin())
+async def cmd_seed_demo(message: Message, session: AsyncSession):
+    await message.answer(await seed_demo(session))
+
+
+@router.message(Command("wipe_demo"), IsAdmin())
+async def cmd_wipe_demo(message: Message, session: AsyncSession):
+    await message.answer(await wipe_demo(session))
 
 
 # ─────────────────────────── рассылка ────────────────────────────────────
